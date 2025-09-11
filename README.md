@@ -1,3 +1,44 @@
+# Overview
+
+This project explores Modular Continual Learning with Task-Agnostic Subnetwork Routing via Attention Mechanisms. The goal is to design and evaluate continual learning methods that:
+
+Address Catastrophic Forgetting: Mitigate performance degradation on previously learned tasks when training on new tasks.
+
+Enable Task-Agnostic Learning: Remove the need for explicit task identity at test time by dynamically routing information through subnetworks.
+
+Leverage Attention Mechanisms: Use attention layers to learn which subnetwork modules should be activated for a given input, allowing flexible and scalable routing.
+
+Modularize Neural Networks: Decompose the network into reusable building blocks (modules) that can be selectively activated to encourage knowledge sharing across tasks while minimizing interference.
+
+Key contributions of this project include:
+
+A framework for attention-based subnetwork routing in modular continual learning.
+
+Experiments on benchmark datasets (e.g., Permuted MNIST, Split CIFAR-100) comparing against established continual learning baselines (EWC, SI, LwF, ER, etc.).
+
+Analysis of performance in both task-incremental and task-free streaming scenarios.
+
+Ultimately, this work aims to provide insights into how attention mechanisms can help continual learning systems scale to diverse tasks without explicit task boundaries, enabling more generalizable and adaptable models.
+
+## Repository overview
+This codebase provides PyTorch implementations and scripts to run, compare and analyze continual learning experiments in both the academic setting (clearly separated contexts) and more flexible, task-free streams.
+
+- **Single experiments**: `main.py` runs one continual learning experiment (e.g., Split/Permuted MNIST, CIFAR-10/100) under different scenarios (task/domain/class) with a variety of methods (EWC, SI, LwF, ER/AGEM, DGR, iCaRL, FROMP, etc.).
+- **Task-free streams**: `main_task_free.py` runs continual learning without explicit context boundaries using different transition schemes (e.g., fuzzy boundaries) and periodic updates.
+- **Method comparisons**: `compare.py` automates running multiple methods side-by-side and summarizes results.
+
+Key directories
+- `models/`: network architectures and continual-learning components (e.g., buffers, losses, utilities)
+- `data/`: dataset loading and stream utilities (data/label streams, manipulation)
+- `eval/`: evaluation helpers and callbacks
+- `params/`: command-line options and parameter handling
+- `ICLRblogpost/`: materials for Fisher Information blog post
+- `figures/`: example figures used in docs/tutorials
+- `store/`: default location for downloaded datasets and produced outputs
+- `utils.py`: general helper functions
+
+For quick start and detailed run instructions, see `RUNNING.md`.
+
 # Continual Learning
 [![DOI](https://zenodo.org/badge/150479999.svg)](https://zenodo.org/badge/latestdoi/150479999)
 
