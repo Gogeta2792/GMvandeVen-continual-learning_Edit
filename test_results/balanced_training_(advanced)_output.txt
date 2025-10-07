@@ -1,0 +1,72 @@
+Command: python train_splitmnist_balanced.py --use_router --gpu --iters 1000 --entropy_coef 0.01 --drift_coef 0.1 --sparsity_coef 0.001 --freeze_router_steps 250
+Duration: 4.80 seconds
+Return Code: 1
+STDOUT:
+Balanced Modular Continual Learning Training
+============================================================
+Using device: cuda
+Loading SplitMNIST data...
+Loaded 5 training contexts and 5 test contexts
+Creating balanced modular network...
+Model parameters: 2,028,930
+Router parameters: 56,928
+Module parameters: 1,972,002
+
+Starting balanced training...
+
+============================================================
+TASK 1/5
+============================================================
+
+--- Training Task 1 ---
+Freezing router for first 250 steps...
+
+STDERR:
+Traceback (most recent call last):
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\train_splitmnist_balanced.py", line 522, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\train_splitmnist_balanced.py", line 481, in main
+    trainer.train_task(train_loaders[task_id], task_id, epochs=args.epochs)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\train_splitmnist_balanced.py", line 304, in train_task
+    step_stats = self.train_step(data, target, task_id)
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\train_splitmnist_balanced.py", line 209, in train_step
+    output, regularizers, attention = self.model(
+                                      ~~~~~~~~~~^
+        data, return_regularizers=True, return_attention=True
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\train_splitmnist_balanced.py", line 93, in forward
+    x, attn_info = layer(x, return_attn=True)
+                   ~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\models\modular_layer.py", line 267, in forward
+    output = module(x)
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\models\modular_layer.py", line 113, in forward
+    x = self.linear1(x)
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\linear.py", line 125, in forward
+    return F.linear(input, self.weight, self.bias)
+           ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: mat1 and mat2 shapes cannot be multiplied (128x784 and 28x400)
+

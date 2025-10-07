@@ -11,10 +11,10 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Make scripts executable (first time only):
+<!-- Make scripts executable (first time only):
 ```bash
 chmod +x main*.py compare*.py all_results.sh
-```
+``` -->
 
 ## 2) Quick sanity check
 Run a small single experiment on Split MNIST with Synaptic Intelligence (SI):
@@ -23,7 +23,7 @@ Run a small single experiment on Split MNIST with Synaptic Intelligence (SI):
 ```
 Expected runtime: ~6 minutes on CPU (~3 minutes on GPU). The script prints data/model details, training progress, and outputs.
 
-## 3) Compare methods
+## 3) Compare methodsc
 Run multiple methods on Split MNIST (task-incremental) and summarize results:
 ```bash
 ./compare.py --experiment=splitMNIST --scenario=task

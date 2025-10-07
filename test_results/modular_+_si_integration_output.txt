@@ -1,0 +1,57 @@
+Command: python train_splitmnist_with_si.py
+Duration: 4.66 seconds
+Return Code: 1
+STDOUT:
+Training Modular Continual Learning on SplitMNIST with SI
+============================================================
+Using device: cpu
+Loading SplitMNIST data...
+Loaded 5 training contexts and 5 test contexts
+Creating modular continual learner...
+Model parameters: 2,028,930
+Starting training...
+
+--- Context 1 ---
+Training samples: 12873
+Test samples: 2145
+
+STDERR:
+Traceback (most recent call last):
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\train_splitmnist_with_si.py", line 328, in <module>
+    model, accuracies = main()
+                        ~~~~^^
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\train_splitmnist_with_si.py", line 252, in main
+    output, regularizers = model(data, return_regularizers=True)
+                           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\train_splitmnist_with_si.py", line 75, in forward
+    x, attn_info = layer(x, return_attn=True)
+                   ~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\models\modular_layer.py", line 267, in forward
+    output = module(x)
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\Admin\Documents\GitHub\GMvandeVen-continual-learning_Edit\models\modular_layer.py", line 113, in forward
+    x = self.linear1(x)
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Roaming\Python\Python313\site-packages\torch\nn\modules\linear.py", line 125, in forward
+    return F.linear(input, self.weight, self.bias)
+           ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: mat1 and mat2 shapes cannot be multiplied (128x784 and 28x400)
+

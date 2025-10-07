@@ -1,0 +1,85 @@
+Command: python train_splitmnist_simple.py
+Duration: 18.71 seconds
+Return Code: 0
+STDOUT:
+Training Simple Modular Continual Learning on SplitMNIST
+============================================================
+Using device: cuda
+Creating SplitMNIST dataset...
+Created 5 tasks
+Model parameters: 3,336,810
+
+--- Task 1 ---
+Training samples: 2000
+Test samples: 2115
+Training...
+  Epoch 0: Loss=0.2091, CE=0.2054, Router=0.0037
+  Epoch 5: Loss=0.0010, CE=0.0000, Router=0.0010
+  Epoch 10: Loss=0.0002, CE=0.0000, Router=0.0002
+Evaluating...
+  Task 1 accuracy: 0.9995
+Average accuracy so far: 0.9995
+
+--- Task 2 ---
+Training samples: 2000
+Test samples: 2042
+Training...
+  Epoch 0: Loss=0.9917, CE=0.9909, Router=0.0009
+  Epoch 5: Loss=0.0251, CE=0.0245, Router=0.0006
+  Epoch 10: Loss=0.0007, CE=0.0001, Router=0.0006
+Evaluating...
+  Task 1 accuracy: 0.7102
+  Task 2 accuracy: 0.9858
+Average accuracy so far: 0.8480
+
+--- Task 3 ---
+Training samples: 2000
+Test samples: 1874
+Training...
+  Epoch 0: Loss=0.3505, CE=0.3503, Router=0.0002
+  Epoch 5: Loss=0.0006, CE=0.0004, Router=0.0002
+  Epoch 10: Loss=0.0001, CE=0.0000, Router=0.0001
+Evaluating...
+  Task 1 accuracy: 0.1281
+  Task 2 accuracy: 0.7644
+  Task 3 accuracy: 0.9973
+Average accuracy so far: 0.6300
+
+--- Task 4 ---
+Training samples: 2000
+Test samples: 1986
+Training...
+  Epoch 0: Loss=0.6697, CE=0.6696, Router=0.0001
+  Epoch 5: Loss=0.0006, CE=0.0006, Router=0.0000
+  Epoch 10: Loss=0.0000, CE=0.0000, Router=0.0000
+Evaluating...
+  Task 1 accuracy: 0.8369
+  Task 2 accuracy: 0.7772
+  Task 3 accuracy: 0.5192
+  Task 4 accuracy: 0.9975
+Average accuracy so far: 0.7827
+
+--- Task 5 ---
+Training samples: 2000
+Test samples: 1983
+Training...
+  Epoch 0: Loss=1.5687, CE=1.5687, Router=0.0000
+  Epoch 5: Loss=0.0121, CE=0.0121, Router=0.0000
+  Epoch 10: Loss=0.0002, CE=0.0002, Router=0.0000
+Evaluating...
+  Task 1 accuracy: 0.3267
+  Task 2 accuracy: 0.6053
+  Task 3 accuracy: 0.1318
+  Task 4 accuracy: 0.8948
+  Task 5 accuracy: 0.9854
+Average accuracy so far: 0.5888
+
+============================================================
+Training completed!
+Total time: 14.97 seconds
+Final average accuracy: 0.5888
+Task accuracies: ['0.9995', '0.8480', '0.6300', '0.7827', '0.5888']
+[INFO] Did not reach 97% target (got 0.5888)
+
+STDERR:
+

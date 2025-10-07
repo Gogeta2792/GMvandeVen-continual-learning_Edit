@@ -1,0 +1,127 @@
+Command: python example_balanced_training.py
+Duration: 4.12 seconds
+Return Code: 0
+STDOUT:
+BALANCED TRAINING SYSTEM DEMONSTRATIONS
+================================================================================
+============================================================
+BASIC BALANCED TRAINING DEMONSTRATION
+============================================================
+Model created with 3,336,810 parameters
+Router parameters: 155,208
+Module parameters: 3,181,602
+
+Training on Task 1...
+  Epoch 0: Loss=0.7477, CE=0.7065, Router=0.0393, Sparsity=0.0020
+  Epoch 1: Loss=0.6609, CE=0.6212, Router=0.0378, Sparsity=0.0020
+  Epoch 2: Loss=0.1689, CE=0.1305, Router=0.0364, Sparsity=0.0020
+  Epoch 3: Loss=0.0430, CE=0.0057, Router=0.0353, Sparsity=0.0020
+  Epoch 4: Loss=0.0363, CE=0.0000, Router=0.0343, Sparsity=0.0020
+Basic demonstration completed!
+
+============================================================
+LOSS COMPONENTS DEMONSTRATION
+============================================================
+
+Testing entropy_coef = 0.0
+  Classification loss: 0.6957
+  Router loss: 0.0061
+  Sparsity loss: 0.0010
+  Total loss: 0.7028
+  layer_0 attention entropy: 1.3863
+
+Testing entropy_coef = 0.01
+  Classification loss: 0.6981
+  Router loss: 0.0200
+  Sparsity loss: 0.0010
+  Total loss: 0.7191
+  layer_0 attention entropy: 1.3863
+
+Testing entropy_coef = 0.1
+  Classification loss: 0.6982
+  Router loss: 0.1448
+  Sparsity loss: 0.0010
+  Total loss: 0.8440
+  layer_0 attention entropy: 1.3863
+
+============================================================
+ROUTER COLLAPSE DETECTION DEMONSTRATION
+============================================================
+Simulating training steps...
+  Step 0: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+  Step 1: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+  Step 2: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+  Step 3: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+  Step 4: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+  Step 5: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+  Step 6: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+  Step 7: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+  Step 8: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+  Step 9: layer_0 max_attention=0.2524, entropy=1.3863, collapsed=False
+
+============================================================
+CURRICULUM LEARNING DEMONSTRATION
+============================================================
+Initial state:
+  Router frozen: False
+After freezing router:
+  Router frozen: True
+  Router parameters require_grad: [False, False, False]
+After unfreezing router:
+  Router frozen: False
+  Router parameters require_grad: [True, True, True]
+
+============================================================
+TWO-OPTIMIZER SYSTEM DEMONSTRATION
+============================================================
+Module optimizer: Adam (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    capturable: False
+    decoupled_weight_decay: False
+    differentiable: False
+    eps: 1e-08
+    foreach: None
+    fused: None
+    lr: 0.001
+    maximize: False
+    weight_decay: 0
+)
+Router optimizer: Adam (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    capturable: False
+    decoupled_weight_decay: False
+    differentiable: False
+    eps: 1e-08
+    foreach: None
+    fused: None
+    lr: 0.0001
+    maximize: False
+    weight_decay: 0
+)
+Module parameters: 18
+Router parameters: 6
+
+Losses:
+  Classification: 0.6942
+  Router: 0.0200
+  Sparsity: 0.0010
+  Total: 0.7152
+
+Gradient norms:
+  Module gradients: [0.19897133111953735, 0.006235338281840086, 0.12470946460962296]...
+  Router gradients: [8.167890337063e-05, 5.7269426179118454e-05, 0.017069341614842415]...
+Two-optimizer system demonstration completed!
+
+================================================================================
+ALL DEMONSTRATIONS COMPLETED!
+================================================================================
+
+To run the full training script:
+python train_splitmnist_balanced.py --use_router --gpu --lr_modules 0.001 --lr_router 0.0001
+
+STDERR:
+
