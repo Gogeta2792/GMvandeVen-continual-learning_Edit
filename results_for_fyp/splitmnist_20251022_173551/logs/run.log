@@ -1,0 +1,12 @@
+SplitMNIST Experiment Run
+======================================================================
+Timestamp: 20251022_173551
+Commit SHA: 0720416921adff886fe33ad88f7b01bae3535063
+Git Dirty: True
+Device: cpu
+
+Total experiments: 1
+Configurations: 1
+Seeds: [42]
+
+Results saved to: results_for_fyp/splitmnist_20251022_173551/results.csv

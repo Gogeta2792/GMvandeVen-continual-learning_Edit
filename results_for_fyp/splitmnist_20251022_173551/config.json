@@ -1,0 +1,22 @@
+{
+  "router": "none",
+  "module_expansion": "off",
+  "expansion_threshold": 0.2,
+  "expansion_cooldown": 1,
+  "max_modules_per_layer": 1,
+  "seeds": [
+    42
+  ],
+  "epochs_per_task": 1,
+  "batch_size": 32,
+  "lr": 0.0003,
+  "optimizer": "adam",
+  "device": "cpu",
+  "num_tasks": 5,
+  "task_incremental": true,
+  "outdir": "results_for_fyp",
+  "lit_file": "literature/baselines_splitmnist.yaml",
+  "data_dir": "./store/datasets",
+  "run_full_grid": false,
+  "single_config": true
+}

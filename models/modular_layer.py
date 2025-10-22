@@ -11,6 +11,7 @@ and will later be integrated with attention-based routing mechanisms.
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 from dataclasses import dataclass
 from typing import Literal, Optional, Tuple, List, Dict
@@ -39,6 +40,15 @@ class ModularLayerConfig:
         router_entropy_coef: Entropy regularization coefficient for router
         router_drift_coef: Drift regularization coefficient for router
         device: Device to place the layer on
+        
+        # Module Expansion parameters
+        enable_expansion: Whether to enable dynamic module expansion
+        max_modules: Maximum number of modules allowed (expansion budget)
+        confidence_threshold: Threshold for triggering expansion (e.g., 0.4)
+        confidence_method: Method for computing confidence ('max_weight' or 'entropy')
+        cooldown_steps: Minimum steps between expansions
+        projection_steps: Number of projection/distillation steps for new module
+        projection_lr: Learning rate for projection phase
     """
     in_dim: int
     out_dim: int
@@ -53,6 +63,15 @@ class ModularLayerConfig:
     router_entropy_coef: float = 0.01
     router_drift_coef: float = 0.1
     device: str = 'cpu'
+    
+    # Module expansion parameters
+    enable_expansion: bool = False
+    max_modules: int = 8
+    confidence_threshold: float = 0.4
+    confidence_method: Literal['max_weight', 'entropy'] = 'max_weight'
+    cooldown_steps: int = 1000
+    projection_steps: int = 100
+    projection_lr: float = 0.001
     
     def __post_init__(self):
         """Validate configuration parameters."""
@@ -72,6 +91,21 @@ class ModularLayerConfig:
             raise ValueError("router_entropy_coef must be in range [0.0, 1.0]")
         if not (0.0 <= self.router_drift_coef <= 1.0):
             raise ValueError("router_drift_coef must be in range [0.0, 1.0]")
+        
+        # Validate expansion parameters
+        if self.enable_expansion:
+            if self.max_modules <= self.num_modules:
+                raise ValueError("max_modules must be greater than num_modules")
+            if not (0.0 < self.confidence_threshold < 1.0):
+                raise ValueError("confidence_threshold must be in range (0.0, 1.0)")
+            if self.confidence_method not in ['max_weight', 'entropy']:
+                raise ValueError("confidence_method must be 'max_weight' or 'entropy'")
+            if self.cooldown_steps <= 0:
+                raise ValueError("cooldown_steps must be a positive integer")
+            if self.projection_steps < 0:
+                raise ValueError("projection_steps must be non-negative")
+            if not self.use_router:
+                raise ValueError("enable_expansion requires use_router=True")
 
 
 class MLPBlock(nn.Module):
@@ -184,6 +218,21 @@ class ModularLayer(nn.Module):
         self.num_modules = config.num_modules
         self.block_type = config.block_type
         self.use_router = config.use_router
+        
+        # Module expansion tracking
+        self.enable_expansion = config.enable_expansion
+        self.max_modules = config.max_modules
+        self.confidence_threshold = config.confidence_threshold
+        self.confidence_method = config.confidence_method
+        self.cooldown_steps = config.cooldown_steps
+        self.projection_steps = config.projection_steps
+        self.projection_lr = config.projection_lr
+        
+        # Track expansion state
+        self.current_step = 0
+        self.last_expansion_step = -config.cooldown_steps  # Allow immediate first expansion
+        self.expansion_count = 0
+        self.expansion_history = []  # List of (step, num_modules, confidence) tuples
         
         # Create the parallel sub-modules
         self.modules_list = nn.ModuleList()
@@ -317,6 +366,417 @@ class ModularLayer(nn.Module):
                 stacked_output = torch.stack(module_outputs, dim=1)
             
             return stacked_output, None
+    
+    def _compute_confidence(self, attention: Tensor) -> Tensor:
+        """Compute confidence score from attention weights.
+        
+        Confidence indicates how "sure" the router is about module selection.
+        Low confidence means the router is spreading weight thinly across modules,
+        suggesting that none of the existing modules fit the input well.
+        
+        Args:
+            attention: Attention weights, shape [batch_size, num_modules]
+            
+        Returns:
+            Confidence scores per sample, shape [batch_size]
+        """
+        if self.confidence_method == 'max_weight':
+            # Confidence = max attention weight
+            # High max weight = confident selection
+            # Low max weight = uncertain, spread thin
+            confidence = attention.max(dim=-1)[0]  # [batch_size]
+        
+        elif self.confidence_method == 'entropy':
+            # Confidence = 1 - normalized_entropy
+            # Low entropy = confident (peaked distribution)
+            # High entropy = uncertain (uniform distribution)
+            entropy = -torch.sum(attention * torch.log(attention + 1e-8), dim=-1)  # [batch_size]
+            max_entropy = math.log(self.num_modules)  # log(M) for uniform distribution
+            normalized_entropy = entropy / (max_entropy + 1e-8)  # [0, 1]
+            confidence = 1.0 - normalized_entropy  # [batch_size]
+        
+        else:
+            raise ValueError(f"Unknown confidence_method: {self.confidence_method}")
+        
+        return confidence
+    
+    def maybe_expand(self, attention: Tensor, optimizer: Optional[torch.optim.Optimizer] = None,
+                    force: bool = False, verbose: bool = True) -> Dict[str, any]:
+        """Check if expansion should occur and perform it if conditions are met.
+        
+        This is the main entry point for expand-on-demand functionality.
+        Call this method after forward passes during training to check if
+        a new module should be added.
+        
+        Args:
+            attention: Current attention weights, shape [batch_size, num_modules]
+            optimizer: Optional optimizer to update with new parameters
+            force: Force expansion regardless of conditions (for testing)
+            verbose: Whether to print expansion logs
+            
+        Returns:
+            Dictionary with expansion info:
+            - 'expanded': Whether expansion occurred
+            - 'confidence': Batch mean confidence
+            - 'num_modules': Current number of modules
+            - 'reason': Reason for expansion or no expansion
+        """
+        result = {
+            'expanded': False,
+            'confidence': 0.0,
+            'num_modules': self.num_modules,
+            'reason': ''
+        }
+        
+        # Increment step counter
+        self.current_step += 1
+        
+        # Compute batch confidence
+        confidence = self._compute_confidence(attention)
+        batch_confidence = confidence.mean().item()
+        result['confidence'] = batch_confidence
+        
+        # Check expansion conditions
+        should_expand, reason = self._check_expansion_conditions(
+            batch_confidence, force=force
+        )
+        result['reason'] = reason
+        
+        if should_expand:
+            # Perform expansion
+            if verbose:
+                print(f"\n{'='*60}")
+                print(f"MODULE EXPANSION TRIGGERED")
+                print(f"Step: {self.current_step}")
+                print(f"Confidence: {batch_confidence:.4f} (threshold: {self.confidence_threshold:.4f})")
+                print(f"Current modules: {self.num_modules} → {self.num_modules + 1}")
+                print(f"Reason: {reason}")
+                print(f"{'='*60}\n")
+            
+            # Add new module
+            self._add_new_module()
+            
+            # Expand router
+            self._expand_router()
+            
+            # Update tracking
+            self.expansion_count += 1
+            self.last_expansion_step = self.current_step
+            self.expansion_history.append((
+                self.current_step,
+                self.num_modules,
+                batch_confidence
+            ))
+            
+            result['expanded'] = True
+            result['num_modules'] = self.num_modules
+            
+            # Update optimizer if provided
+            if optimizer is not None:
+                self._update_optimizer_params(optimizer)
+            
+            if verbose:
+                print(f"Expansion complete! New module count: {self.num_modules}")
+                if self.projection_steps > 0:
+                    print(f"Note: Run projection phase with {self.projection_steps} steps")
+        
+        return result
+    
+    def _check_expansion_conditions(self, batch_confidence: float, 
+                                   force: bool = False) -> Tuple[bool, str]:
+        """Check if all conditions for expansion are met.
+        
+        Args:
+            batch_confidence: Mean confidence across the batch
+            force: Force expansion regardless of conditions
+            
+        Returns:
+            Tuple of (should_expand, reason)
+        """
+        if force:
+            return True, "Forced expansion"
+        
+        if not self.enable_expansion:
+            return False, "Expansion disabled"
+        
+        # Check module budget
+        if self.num_modules >= self.max_modules:
+            return False, f"At max modules ({self.max_modules})"
+        
+        # Check cooldown period
+        steps_since_last = self.current_step - self.last_expansion_step
+        if steps_since_last < self.cooldown_steps:
+            return False, f"In cooldown ({steps_since_last}/{self.cooldown_steps} steps)"
+        
+        # Check confidence threshold
+        if batch_confidence >= self.confidence_threshold:
+            return False, f"Confidence too high ({batch_confidence:.4f} >= {self.confidence_threshold:.4f})"
+        
+        # All conditions met!
+        return True, f"Low confidence ({batch_confidence:.4f} < {self.confidence_threshold:.4f})"
+    
+    def _add_new_module(self):
+        """Add a new module initialized from EMA of existing modules.
+        
+        The new module is initialized as a weighted average (EMA) of existing
+        modules' parameters. This provides a warm start that matches the current
+        representation space.
+        """
+        # Create new module with same architecture
+        if self.block_type == 'mlp':
+            new_module = MLPBlock(
+                in_dim=self.config.in_dim,
+                hidden_dim=self.config.hidden_dim,
+                out_dim=self.config.out_dim,
+                bias=self.config.bias,
+                dropout=self.config.dropout
+            )
+        elif self.block_type == 'conv':
+            new_module = ConvBlock(
+                in_channels=self.config.in_dim,
+                out_channels=self.config.out_dim,
+                bias=self.config.bias,
+                dropout=self.config.dropout
+            )
+        else:
+            raise ValueError(f"Unknown block_type: {self.block_type}")
+        
+        # Initialize from EMA of existing modules
+        self._initialize_module_from_ema(new_module)
+        
+        # Add to module list
+        new_module.to(self.config.device)
+        self.modules_list.append(new_module)
+        self.num_modules += 1
+    
+    def _initialize_module_from_ema(self, new_module: nn.Module, ema_weight: float = 0.1):
+        """Initialize new module as weighted average of existing modules.
+        
+        Args:
+            new_module: The new module to initialize
+            ema_weight: Weight for averaging (lower = closer to mean)
+        """
+        with torch.no_grad():
+            # Get parameters from all existing modules
+            for param_name, new_param in new_module.named_parameters():
+                # Compute mean of corresponding parameters from existing modules
+                param_sum = None
+                count = 0
+                
+                for module in self.modules_list:
+                    for name, param in module.named_parameters():
+                        if name == param_name:
+                            if param_sum is None:
+                                param_sum = param.data.clone()
+                            else:
+                                param_sum += param.data
+                            count += 1
+                            break
+                
+                if param_sum is not None and count > 0:
+                    # Set new parameter to mean of existing
+                    param_mean = param_sum / count
+                    # Add small noise for diversity
+                    noise = torch.randn_like(param_mean) * ema_weight * param_mean.std()
+                    new_param.data.copy_(param_mean + noise)
+    
+    def _expand_router(self):
+        """Expand router output dimension from M to M+1.
+        
+        This adds a new output logit for the new module, initialized with
+        low bias so it doesn't immediately dominate routing.
+        """
+        if self.router is None:
+            return
+        
+        # Get current router output layer
+        old_linear2 = self.router.linear2
+        old_out_features = old_linear2.out_features
+        in_features = old_linear2.in_features
+        
+        # Create new output layer with M+1 outputs
+        new_linear2 = nn.Linear(in_features, old_out_features + 1, 
+                               bias=old_linear2.bias is not None)
+        new_linear2.to(self.config.device)
+        
+        # Copy old weights and biases
+        with torch.no_grad():
+            # Copy existing weights
+            new_linear2.weight.data[:old_out_features, :] = old_linear2.weight.data
+            
+            # Initialize new module's logit weight as mean of existing
+            mean_weight = old_linear2.weight.data.mean(dim=0, keepdim=True)
+            new_linear2.weight.data[old_out_features:, :] = mean_weight * 0.1  # Small scale
+            
+            if old_linear2.bias is not None:
+                # Copy existing biases
+                new_linear2.bias.data[:old_out_features] = old_linear2.bias.data
+                # Initialize new bias low (negative) so new module starts with low probability
+                new_linear2.bias.data[old_out_features:] = -2.0
+        
+        # Replace router output layer
+        self.router.linear2 = new_linear2
+        self.router.num_modules = self.num_modules
+        
+        # Expand EMA buffer
+        old_ema = self.router.ema_attention
+        new_ema = torch.zeros(1, self.num_modules, device=self.config.device)
+        with torch.no_grad():
+            new_ema[0, :old_out_features] = old_ema[0, :]
+            new_ema[0, old_out_features] = 1.0 / self.num_modules  # Small initial value
+            # Renormalize
+            new_ema = new_ema / new_ema.sum()
+        self.router.ema_attention = new_ema
+    
+    def run_projection_phase(self, x: Tensor, num_steps: Optional[int] = None,
+                            lr: Optional[float] = None, verbose: bool = True) -> List[float]:
+        """Run projection/distillation phase for the newest module.
+        
+        After adding a new module, run this to train it to match the output
+        of the weighted combination of old modules. This aligns it with the
+        existing representation space.
+        
+        Args:
+            x: Training data, shape [batch_size, in_dim] or [batch_size, in_channels, H, W]
+            num_steps: Number of projection steps (default: self.projection_steps)
+            lr: Learning rate (default: self.projection_lr)
+            verbose: Whether to print progress
+            
+        Returns:
+            List of projection losses over steps
+        """
+        if self.num_modules <= 1:
+            if verbose:
+                print("No projection needed (only 1 module)")
+            return []
+        
+        num_steps = num_steps or self.projection_steps
+        lr = lr or self.projection_lr
+        
+        if num_steps == 0:
+            return []
+        
+        if verbose:
+            print(f"\nRunning projection phase: {num_steps} steps, lr={lr}")
+        
+        # Get the newest module
+        newest_module = self.modules_list[-1]
+        
+        # Create optimizer for only the new module
+        optimizer = torch.optim.Adam(newest_module.parameters(), lr=lr)
+        
+        losses = []
+        
+        for step in range(num_steps):
+            # Compute outputs from all modules
+            module_outputs = []
+            for module in self.modules_list:
+                with torch.no_grad() if module != newest_module else torch.enable_grad():
+                    output = module(x)
+                    module_outputs.append(output)
+            
+            # Get router attention (excluding new module)
+            if self.block_type == 'conv':
+                batch_size, channels, height, width = x.shape
+                x_flat = x.view(batch_size, -1)
+                _, attention, _ = self.router(x_flat)
+            else:
+                _, attention, _ = self.router(x)
+            
+            # Compute target: weighted sum of OLD modules (exclude newest)
+            with torch.no_grad():
+                if self.block_type == 'mlp':
+                    old_mods = torch.stack(module_outputs[:-1], dim=1)  # [B, M-1, out_dim]
+                    old_attn = attention[:, :-1]  # [B, M-1]
+                    # Renormalize old attention
+                    old_attn = old_attn / (old_attn.sum(dim=-1, keepdim=True) + 1e-8)
+                    target = (old_attn.unsqueeze(-1) * old_mods).sum(dim=1)  # [B, out_dim]
+                else:  # conv
+                    old_mods = torch.stack(module_outputs[:-1], dim=1)  # [B, M-1, C, H, W]
+                    old_attn = attention[:, :-1]  # [B, M-1]
+                    old_attn = old_attn / (old_attn.sum(dim=-1, keepdim=True) + 1e-8)
+                    old_attn_exp = old_attn.view(x.size(0), self.num_modules - 1, 1, 1, 1)
+                    target = (old_attn_exp * old_mods).sum(dim=1)  # [B, C, H, W]
+            
+            # Get new module output
+            new_output = module_outputs[-1]
+            
+            # Compute MSE loss
+            loss = F.mse_loss(new_output, target)
+            
+            # Backward and optimize
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            losses.append(loss.item())
+            
+            if verbose and (step % (num_steps // 10) == 0 or step == num_steps - 1):
+                print(f"  Step {step}/{num_steps}: loss = {loss.item():.6f}")
+        
+        if verbose:
+            print(f"Projection phase complete. Final loss: {losses[-1]:.6f}\n")
+        
+        return losses
+    
+    def get_new_optimizer_params(self) -> List[Dict]:
+        """Get parameter groups for newly added module and router weights.
+        
+        Use this to update optimizer after expansion:
+            new_params = layer.get_new_optimizer_params()
+            for param_group in new_params:
+                optimizer.add_param_group(param_group)
+        
+        Returns:
+            List of parameter group dictionaries
+        """
+        param_groups = []
+        
+        # Add newest module parameters
+        if len(self.modules_list) > 0:
+            newest_module = self.modules_list[-1]
+            param_groups.append({
+                'params': list(newest_module.parameters()),
+                'name': f'module_{self.num_modules - 1}'
+            })
+        
+        # Add new router parameters (the expanded weights)
+        if self.router is not None:
+            # Note: Only the new weights/biases in linear2 are actually new
+            # For simplicity, we add the whole linear2 layer
+            param_groups.append({
+                'params': list(self.router.linear2.parameters()),
+                'name': 'router_output'
+            })
+        
+        return param_groups
+    
+    def _update_optimizer_params(self, optimizer: torch.optim.Optimizer):
+        """Update optimizer with new module parameters.
+        
+        Args:
+            optimizer: The optimizer to update
+        """
+        new_param_groups = self.get_new_optimizer_params()
+        for param_group in new_param_groups:
+            optimizer.add_param_group(param_group)
+    
+    def get_expansion_stats(self) -> Dict[str, any]:
+        """Get statistics about module expansions.
+        
+        Returns:
+            Dictionary with expansion statistics
+        """
+        return {
+            'num_modules': self.num_modules,
+            'expansion_count': self.expansion_count,
+            'current_step': self.current_step,
+            'last_expansion_step': self.last_expansion_step,
+            'expansion_history': self.expansion_history.copy(),
+            'enable_expansion': self.enable_expansion,
+            'max_modules': self.max_modules,
+            'confidence_threshold': self.confidence_threshold,
+        }
     
     def _prune_attention(self, attention: Tensor, threshold: float) -> Tensor:
         """Zero-out modules whose attention weight is below threshold.

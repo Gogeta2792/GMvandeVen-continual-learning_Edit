@@ -1,0 +1,61 @@
+# Literature Baselines for SplitMNIST
+# 
+# This file contains baseline results from published continual learning papers
+# for comparison with our experiments.
+#
+# Fields:
+#   - paper_key: Short identifier for the paper
+#   - protocol: Learning protocol (task-incremental-multihead, class-incremental, etc.)
+#   - heads: multi or single
+#   - epochs_per_task: Training epochs per task
+#   - optimizer: Optimizer used
+#   - reported_avg_acc: Average accuracy reported in the paper (null if not available)
+#   - notes: Additional notes about the experiment setup
+
+- paper_key: "Kirkpatrick2017_EWC"
+  protocol: "task-incremental-multihead"
+  heads: "multi"
+  epochs_per_task: 5
+  optimizer: "adam"
+  reported_avg_acc: null
+  notes: "Placeholder; fill from paper. EWC with Fisher information regularization."
+
+- paper_key: "Zenke2017_SI"
+  protocol: "task-incremental-multihead"
+  heads: "multi"
+  epochs_per_task: 5
+  optimizer: "adam"
+  reported_avg_acc: null
+  notes: "Placeholder; fill from paper. Synaptic Intelligence regularization."
+
+- paper_key: "Lopez-Paz2017_GEM"
+  protocol: "task-incremental-multihead"
+  heads: "multi"
+  epochs_per_task: 5
+  optimizer: "adam"
+  reported_avg_acc: null
+  notes: "Placeholder; fill from paper. Gradient Episodic Memory."
+
+- paper_key: "Chaudhry2019_AGEM"
+  protocol: "task-incremental-multihead"
+  heads: "multi"
+  epochs_per_task: 5
+  optimizer: "adam"
+  reported_avg_acc: null
+  notes: "Placeholder; fill from paper. Averaged GEM."
+
+- paper_key: "Aljundi2019_ER"
+  protocol: "task-incremental-multihead"
+  heads: "multi"
+  epochs_per_task: 5
+  optimizer: "adam"
+  reported_avg_acc: null
+  notes: "Placeholder; fill from paper. Experience Replay baseline."
+
+# Instructions for filling in this file:
+# 1. Find the paper
+# 2. Look for SplitMNIST or PermutedMNIST results
+# 3. Check if protocol matches (task-incremental with multi-head)
+# 4. Record the reported average accuracy
+# 5. Note any differences in setup (epochs, optimizer, architecture)
+

@@ -1,0 +1,59 @@
+{
+  "timestamp": "20251022_173655",
+  "commit_sha": "0720416921adff886fe33ad88f7b01bae3535063",
+  "device": "cpu",
+  "seed": 123,
+  "router": "none",
+  "module_expansion": "off",
+  "expansion_threshold": 0.2,
+  "expansion_cooldown": 1,
+  "max_modules_per_layer": 1,
+  "num_tasks": 5,
+  "epochs_per_task": 2,
+  "batch_size": 64,
+  "lr": 0.0003,
+  "optimizer": "adam",
+  "task0_acc": 0.9470449172576832,
+  "task1_acc": 0.9613124387855044,
+  "task2_acc": 0.9967982924226254,
+  "task3_acc": 0.9954682779456193,
+  "task4_acc": 0.9939485627836612,
+  "final_avg_acc": 0.9789144978390187,
+  "final_forgetting": 0.02173387976343727,
+  "final_params": 478410,
+  "peak_params": 478410,
+  "train_time_s": 9.347784996032715,
+  "peak_vram_mb": "",
+  "lit_paper_key": "",
+  "lit_reported_avg_acc": "",
+  "protocol_match": "no",
+  "notes": "",
+  "expansion_events": [],
+  "task_history": [
+    [
+      0.9990543735224586
+    ],
+    [
+      0.9995271867612293,
+      0.9926542605288933
+    ],
+    [
+      0.9853427895981087,
+      0.9916748285994124,
+      0.9983991462113126
+    ],
+    [
+      0.9210401891252955,
+      0.9760039177277179,
+      0.9967982924226254,
+      0.9969788519637462
+    ],
+    [
+      0.9470449172576832,
+      0.9613124387855044,
+      0.9967982924226254,
+      0.9954682779456193,
+      0.9939485627836612
+    ]
+  ]
+}
