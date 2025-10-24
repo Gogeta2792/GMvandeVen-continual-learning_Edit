@@ -57,7 +57,8 @@ class SimpleModularMLP(nn.Module):
         classes_per_task: int = 2,
         use_router: bool = False,
         num_modules: int = 1,
-        device: str = 'cpu'
+        device: str = 'cpu',
+        expansion_config: Optional[Dict[str, Any]] = None
     ):
         super().__init__()
         
@@ -69,30 +70,55 @@ class SimpleModularMLP(nn.Module):
         self.num_modules = num_modules
         self.device_str = device
         
-        # Feature extractor - simple two-layer MLP
-        if use_router and num_modules > 1:
-            # Use modular layer with routing
+        # Feature extractor - use modular layer for both router types
+        if use_router or num_modules >= 1:
+            # Use modular layer with appropriate router configuration
             from models.modular_layer import ModularLayerConfig, ModularLayer
             
-            config = ModularLayerConfig(
+            expansion_enabled = expansion_config is not None and expansion_config.get('module_expansion') == 'on'
+            
+            # Handle expansion constraints: expansion requires use_router=True
+            # For router='none' with expansion, we need to enable router for expansion to work
+            effective_use_router = use_router or (expansion_enabled and num_modules >= 1)
+            
+            # Get max_modules and ensure it's greater than num_modules for expansion
+            max_modules = expansion_config.get('max_modules_per_layer', 8) if expansion_config else 8
+            if expansion_enabled and max_modules <= num_modules:
+                # If expansion is enabled but max_modules is not greater than num_modules,
+                # either disable expansion or increase max_modules
+                if num_modules == 1:
+                    max_modules = 8  # Default to 8 for single module
+                else:
+                    max_modules = num_modules + 1  # At least one more module
+            
+            layer_config = ModularLayerConfig(
                 in_dim=input_dim,
                 out_dim=hidden_dim,
                 num_modules=num_modules,
                 block_type='mlp',
                 hidden_dim=hidden_dim,
-                use_router=True,
-                enable_expansion=False,  # Expansion handled externally
+                use_router=effective_use_router,  # Enable router if expansion is needed
+                enable_expansion=expansion_enabled,  # Enable expansion if configured
+                max_modules=max_modules,
+                confidence_threshold=expansion_config.get('expansion_threshold', 0.45) if expansion_config else 0.45,  # Updated default
+                cooldown_steps=expansion_config.get('expansion_cooldown', 1) * 100 if expansion_config else 100,  # Convert tasks to steps
                 device=device
             )
-            self.feature_layer = ModularLayer(config)
+            self.feature_layer = ModularLayer(layer_config)
+            
+            # Store original router setting for reference
+            self.original_use_router = use_router
+            self.effective_use_router = effective_use_router
         else:
-            # Standard MLP without routing
+            # Fallback to standard MLP (shouldn't happen with new config)
             self.feature_layer = nn.Sequential(
                 nn.Linear(input_dim, hidden_dim),
                 nn.ReLU(),
                 nn.Linear(hidden_dim, hidden_dim),
                 nn.ReLU()
             )
+            self.original_use_router = use_router
+            self.effective_use_router = use_router
         
         # Task-specific heads (multi-head for task-incremental)
         self.task_heads = nn.ModuleList([
@@ -113,6 +139,12 @@ class SimpleModularMLP(nn.Module):
         else:
             # Modular layer
             features, attention_info = self.feature_layer(x, return_attn=return_attention)
+            
+            # Handle case when no router is used - select first module output
+            if not self.effective_use_router and features.dim() == 3:
+                # features shape: [batch_size, num_modules, out_dim]
+                # Select first module output: [batch_size, out_dim]
+                features = features[:, 0, :]
         
         return features, attention_info
     
@@ -221,6 +253,11 @@ def run_one_experiment(config: Dict[str, Any]) -> Dict[str, Any]:
     # Create model
     use_router = (config['router'] == 'attn')
     num_modules = config.get('initial_modules', 1)
+    expansion_enabled = (config['module_expansion'] == 'on')
+    
+    # Configuration validation and diagnostics
+    print(f"\n[CONFIG] Router: {config['router']}, Modules: {num_modules}, Expansion: {config['module_expansion']}")
+    print(f"[CONFIG] use_router={use_router}, num_modules={num_modules}")
     
     model = SimpleModularMLP(
         input_dim=784,
@@ -229,8 +266,25 @@ def run_one_experiment(config: Dict[str, Any]) -> Dict[str, Any]:
         classes_per_task=2,
         use_router=use_router,
         num_modules=num_modules,
-        device=device
+        device=device,
+        expansion_config=config if expansion_enabled else None
     )
+    
+    # Verify model architecture
+    if hasattr(model.feature_layer, 'num_modules'):
+        print(f"[VERIFY] Using ModularLayer with {model.feature_layer.num_modules} modules")
+        print(f"[VERIFY] Original router setting: {model.original_use_router}")
+        print(f"[VERIFY] Effective router setting: {model.effective_use_router}")
+    else:
+        print(f"[VERIFY] Using standard MLP (Sequential)")
+    
+    # Validate configuration consistency
+    if config['router'] == 'attn' and num_modules < 2:
+        print(f"[WARNING] Attention router with only {num_modules} module(s) - routing may be trivial")
+    elif config['router'] == 'none' and num_modules > 1:
+        print(f"[WARNING] No router with {num_modules} modules - using deterministic selection")
+    elif config['router'] == 'none' and expansion_enabled:
+        print(f"[INFO] Router='none' with expansion enabled - using router internally for expansion")
     
     # Optimizer
     if config['optimizer'] == 'adam':
@@ -244,7 +298,6 @@ def run_one_experiment(config: Dict[str, Any]) -> Dict[str, Any]:
     criterion = nn.CrossEntropyLoss()
     
     # Expansion tracker
-    expansion_enabled = (config['module_expansion'] == 'on')
     expansion_tracker = None
     expansion_events = []
     
@@ -330,27 +383,52 @@ def run_one_experiment(config: Dict[str, Any]) -> Dict[str, Any]:
             print(f"  Epoch {epoch+1}/{config['epochs_per_task']}: "
                   f"Loss={epoch_loss/len(train_loader):.4f}, Acc={epoch_acc:.4f}")
         
+        # Track parameters before any expansion
+        current_params = count_parameters(model)
+        param_history.append(current_params)
+        
         # Check if expansion should occur (after task training)
-        if expansion_tracker is not None:
+        if expansion_tracker is not None and hasattr(model.feature_layer, 'maybe_expand'):
             if expansion_tracker.check_trigger():
                 print(f"\n[EXPANSION TRIGGERED at Task {task_id}]")
                 print(f"  Avg Confidence: {expansion_tracker.get_average_confidence():.4f}")
                 print(f"  Threshold: {expansion_tracker.threshold:.4f}")
                 
-                # Apply expansion (simplified - not fully integrated in this version)
-                # In a full implementation, this would expand the modular layer
-                expansion_tracker.current_modules += 1
-                expansion_tracker.tasks_since_expansion = 0
+                # Get current attention weights for expansion decision
+                # Use dummy attention based on confidence
+                avg_confidence = expansion_tracker.get_average_confidence()
+                dummy_attention = torch.ones(1, model.feature_layer.num_modules, device=device) * avg_confidence
                 
-                event = {
-                    'task_id': task_id,
-                    'layer': 'feature_layer',
-                    'new_module_id': expansion_tracker.current_modules - 1,
-                    'params_added': 0,  # Simplified
-                    'confidence': expansion_tracker.get_average_confidence()
-                }
-                expansion_events.append(event)
-                print(f"  New module count: {expansion_tracker.current_modules}\n")
+                # Apply real expansion to the modular layer
+                expansion_result = model.feature_layer.maybe_expand(
+                    attention=dummy_attention,
+                    optimizer=optimizer,
+                    force=False,
+                    verbose=True
+                )
+                
+                if expansion_result['expanded']:
+                    # Count parameters after expansion
+                    params_after = count_parameters(model)
+                    params_added = params_after - current_params
+                    
+                    # Update expansion tracker
+                    expansion_tracker.current_modules = expansion_result['num_modules']
+                    expansion_tracker.tasks_since_expansion = 0
+                    
+                    event = {
+                        'task_id': task_id,
+                        'layer': 'feature_layer',
+                        'new_module_id': expansion_result['num_modules'] - 1,
+                        'params_added': params_added,
+                        'confidence': expansion_result['confidence']
+                    }
+                    expansion_events.append(event)
+                    print(f"  New module count: {expansion_result['num_modules']}")
+                    print(f"  Parameters added: {params_added:,}")
+                    print(f"  Total parameters: {params_after:,}\n")
+                else:
+                    print(f"  Expansion skipped: {expansion_result['reason']}\n")
             
             # Reset for next task
             expansion_tracker.reset_after_task()
@@ -359,26 +437,27 @@ def run_one_experiment(config: Dict[str, Any]) -> Dict[str, Any]:
         task_accs = compute_task_accs(model, test_datasets[:task_id+1], device, task_id+1)
         task_history.append(task_accs)
         
-        # Track parameters
-        current_params = count_parameters(model)
-        param_history.append(current_params)
-        
         print(f"\nAfter Task {task_id}:")
         for i, acc in enumerate(task_accs):
             print(f"  Task {i} Accuracy: {acc:.4f}")
         print(f"  Average Accuracy: {np.mean(task_accs):.4f}")
-        print(f"  Parameters: {current_params:,}")
+        print(f"  Parameters: {count_parameters(model):,}")
     
     # Final evaluation
     end_time = time.time()
     train_time_s = end_time - start_time
     
-    # Final metrics
+    # Final metrics - recompute parameters to ensure accuracy after any expansions
     final_task_accs = task_history[-1]
     final_forgetting = compute_forgetting(task_history, config['num_tasks'])
-    final_params = param_history[-1]
-    peak_params = max(param_history)
+    
+    # Recompute final parameters to ensure accuracy after expansions
+    final_params = count_parameters(model)
+    peak_params = max(param_history + [final_params])  # Include final count in peak calculation
     peak_vram_mb = try_peak_vram()
+    
+    print(f"\nFinal parameter count: {final_params:,}")
+    print(f"Peak parameter count: {peak_params:,}")
     
     # Sanity check
     passed, notes = sanity_check_task0(final_task_accs[0], threshold=0.90)
@@ -389,9 +468,12 @@ def run_one_experiment(config: Dict[str, Any]) -> Dict[str, Any]:
     if len(expansion_events) > 0:
         print(f"\n{'='*60}")
         print(f"Expansion Events: {len(expansion_events)}")
+        total_params_added = 0
         for event in expansion_events:
             print(f"  Task {event['task_id']}: Added module {event['new_module_id']} "
-                  f"(confidence={event['confidence']:.4f})")
+                  f"(confidence={event['confidence']:.4f}, params_added={event['params_added']:,})")
+            total_params_added += event['params_added']
+        print(f"  Total parameters added by expansion: {total_params_added:,}")
         print(f"{'='*60}")
     
     # Build result row

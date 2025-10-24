@@ -27,11 +27,11 @@ python -m experiments.run_experiments
 Fast test to verify everything works:
 
 ```bash
-python -m experiments.run_experiments \
-  --single-config \
-  --router none \
-  --module-expansion off \
-  --seeds 0 \
+python -m experiments.run_experiments 
+  --single-config 
+  --router none 
+  --module-expansion off 
+  --seeds 0 
   --epochs-per-task 2
 ```
 
@@ -45,11 +45,11 @@ python -m experiments.run_experiments \
 Run with more epochs for publication-quality results:
 
 ```bash
-python -m experiments.run_experiments \
-  --seeds 0 1 2 3 4 \
-  --epochs-per-task 20 \
-  --batch-size 128 \
-  --lr 1e-3 \
+python -m experiments.run_experiments 
+  --seeds 0 1 2 3 4 
+  --epochs-per-task 20 
+  --batch-size 128 
+  --lr 1e-3 
   --device cuda
 ```
 

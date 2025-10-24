@@ -101,6 +101,14 @@ def build_config_grid(args) -> List[Dict[str, Any]]:
     
     for router in routers:
         for expansion in expansions:
+            # Set initial_modules based on router type
+            if router == 'attn':
+                initial_modules = 2  # Enable non-trivial routing from start
+            elif router == 'none':
+                initial_modules = 1  # Deterministic single module baseline
+            else:
+                initial_modules = 1  # Fallback
+                
             # Base configuration
             config_template = {
                 'router': router,
@@ -115,7 +123,7 @@ def build_config_grid(args) -> List[Dict[str, Any]]:
                 'optimizer': args.optimizer,
                 'task_incremental': args.task_incremental,
                 'data_dir': args.data_dir,
-                'initial_modules': 1,  # Start with 1 module
+                'initial_modules': initial_modules,
             }
             
             # Device
@@ -208,6 +216,9 @@ def compute_aggregate_stats(results: List[Dict[str, Any]]) -> List[Dict[str, Any
             values = [r[field] for r in group_results if isinstance(r.get(field), (int, float))]
             if len(values) > 0:
                 mean_result[field] = np.mean(values)
+            else:
+                # Handle case where field is missing from all results (failed experiments)
+                mean_result[field] = 0.0
         
         aggregate_results.append(mean_result)
         
@@ -406,7 +417,7 @@ def main():
             print(f"\n{result['router']:6s} + expansion={result['module_expansion']:3s}:")
             print(f"  Avg Acc:   {result['final_avg_acc']:.4f}")
             print(f"  Forgetting: {result['final_forgetting']:.4f}")
-            print(f"  Params:     {result['final_params']:,.0f}")
+            print(f"  Params:     {result.get('final_params', 0):,.0f}")
     
     print(f"\n{'='*70}\n")
 

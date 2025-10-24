@@ -449,8 +449,9 @@ class ModularLayer(nn.Module):
                 print(f"MODULE EXPANSION TRIGGERED")
                 print(f"Step: {self.current_step}")
                 print(f"Confidence: {batch_confidence:.4f} (threshold: {self.confidence_threshold:.4f})")
-                print(f"Current modules: {self.num_modules} → {self.num_modules + 1}")
+                print(f"Current modules: {self.num_modules} -> {self.num_modules + 1}")
                 print(f"Reason: {reason}")
+                print(f"[Expansion] Layer adding new module at step {self.current_step}, total modules now {self.num_modules + 1}")
                 print(f"{'='*60}\n")
             
             # Add new module
