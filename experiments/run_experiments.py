@@ -37,12 +37,12 @@ def parse_args():
                        help='Router type: none (fixed) or attn (attention-based)')
     parser.add_argument('--module-expansion', type=str, default='off', choices=['on', 'off'],
                        help='Enable module expansion')
-    parser.add_argument('--expansion-threshold', type=float, default=0.2,
+    parser.add_argument('--expansion-threshold', type=float, default=0.4,
                        help='Confidence threshold for triggering expansion')
     parser.add_argument('--expansion-cooldown', type=int, default=1,
                        help='Tasks to wait after expansion before next expansion')
-    parser.add_argument('--max-modules-per-layer', type=int, default=1,
-                       help='Maximum modules per layer')
+    parser.add_argument('--max-modules-per-layer', type=int, default=8,
+                       help='Maximum modules per layer (budget for expansion)')
     
     # Training parameters
     parser.add_argument('--seeds', type=int, nargs='+', default=[0, 1, 2],
@@ -275,12 +275,19 @@ def main():
     print("="*70)
     print("SplitMNIST Experiment Harness - 2×2 Ablation Study")
     print("="*70)
+    print("\nThis will run 4 configurations:")
+    print("  1. Router=none, Expansion=off (baseline)")
+    print("  2. Router=none, Expansion=on")
+    print("  3. Router=attn, Expansion=off")
+    print("  4. Router=attn, Expansion=on")
     print(f"\nConfiguration:")
     print(f"  Seeds: {args.seeds}")
     print(f"  Epochs per task: {args.epochs_per_task}")
     print(f"  Batch size: {args.batch_size}")
     print(f"  Learning rate: {args.lr}")
     print(f"  Optimizer: {args.optimizer}")
+    print(f"  Max modules per layer: {args.max_modules_per_layer}")
+    print(f"  Expansion threshold: {args.expansion_threshold}")
     print(f"  Device: {args.device}")
     print(f"  Output directory: {args.outdir}")
     print()

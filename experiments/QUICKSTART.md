@@ -17,10 +17,18 @@ Run all 4 configurations with 3 seeds each:
 python -m experiments.run_experiments
 ```
 
+**This runs 4 experiments testing:**
+1. **Router=none, Expansion=off** - Baseline (single module, no routing)
+2. **Router=none, Expansion=on** - Expansion without initial routing
+3. **Router=attn, Expansion=off** - Attention routing with fixed modules
+4. **Router=attn, Expansion=on** - Full system (routing + expansion)
+
 **Expected output:**
 - 12 total experiments (4 configs × 3 seeds)
 - Results in `results_for_fyp/splitmnist_<timestamp>/results.csv`
 - Runtime: ~10-15 minutes on CPU (5 epochs/task)
+
+**Note:** Configuration #2 (router=none + expansion=on) uses routing internally for expansion decisions, since expansion relies on attention weights to determine when to add modules.
 
 ### 2. Quick Test (Single Config, 1 Seed)
 
@@ -220,9 +228,9 @@ plt.show()
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `--expansion-threshold` | float | 0.2 | Confidence threshold |
-| `--expansion-cooldown` | int | 1 | Tasks between expansions |
-| `--max-modules-per-layer` | int | 1 | Maximum modules |
+| `--expansion-threshold` | float | 0.4 | Confidence threshold for triggering expansion |
+| `--expansion-cooldown` | int | 0 | Tasks between expansions (0=no cooldown) |
+| `--max-modules-per-layer` | int | 8 | Maximum modules (expansion budget) |
 
 ### Execution Modes
 

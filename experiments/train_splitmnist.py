@@ -259,6 +259,13 @@ def run_one_experiment(config: Dict[str, Any]) -> Dict[str, Any]:
     print(f"\n[CONFIG] Router: {config['router']}, Modules: {num_modules}, Expansion: {config['module_expansion']}")
     print(f"[CONFIG] use_router={use_router}, num_modules={num_modules}")
     
+    # Note: When router='none' + expansion='on', the router is enabled internally
+    # for expansion decisions (confidence computation), even though the configuration
+    # is labeled as "no router". This is necessary because expansion relies on
+    # attention weights to determine when to add new modules.
+    if not use_router and expansion_enabled:
+        print(f"[INFO] Router='none' + expansion='on': Router enabled internally for expansion mechanism")
+    
     model = SimpleModularMLP(
         input_dim=784,
         hidden_dim=400,
